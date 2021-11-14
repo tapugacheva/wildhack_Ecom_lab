@@ -4,6 +4,7 @@ from texts_n_dicts import *
 
 
 def get_alerts(products, df_total, df):
+
     alerts = list()
     for prod in products:
         # view_item
@@ -12,11 +13,11 @@ def get_alerts(products, df_total, df):
         df1_gr = df_1.groupby(['ecom_event_action', 'ecom_id']).agg({'user_id': 'nunique'}).reset_index().sort_values(
             'user_id', ascending=False)
         df1_gr = df1_gr[df1_gr['ecom_event_action'] == 'view_item']
-        upper_bownd = np.quantile(np.array(df1_gr['user_id']), 0.95, axis=None, out=None, overwrite_input=False,
-                                  interpolation='linear', keepdims=False)
-        lower_bownd = np.quantile(np.array(df1_gr['user_id']), 0.05, axis=None, out=None, overwrite_input=False,
-                                  interpolation='linear', keepdims=False)
-        mean_m = df1_gr[(df1_gr.user_id > lower_bownd) & (df1_gr.user_id < upper_bownd)]['user_id'].mean()
+        upper_bond = np.quantile(np.array(df1_gr['user_id']), 0.95, axis=None, out=None, overwrite_input=False,
+                                 interpolation='linear', keepdims=False)
+        lower_bond = np.quantile(np.array(df1_gr['user_id']), 0.05, axis=None, out=None, overwrite_input=False,
+                                 interpolation='linear', keepdims=False)
+        mean_m = df1_gr[(df1_gr.user_id > lower_bond) & (df1_gr.user_id < upper_bond)]['user_id'].mean()
         seller_prod_view = df[(df.ecom_id == prod) & (df.ecom_event_action == 'view_item')][
             'user_id'].nunique()
         if abs(seller_prod_view - mean_m) / mean_m > 0.2 and abs(seller_prod_view - mean_m) / mean_m < 1:
@@ -45,7 +46,7 @@ def get_alerts(products, df_total, df):
             'user_id', ascending=False)
         conversion_total = df1_gr['user_id'][1] / df1_gr['user_id'][0]
         if conversion_prod < conversion_total:
-            alert_conv_cart = f'Конверсия из просмотров в добавление в корзину - у Вашего товара {prod} меньше на {round(abs(conversion_prod - conversion_total) / conversion_total * 100)}% чем у конкурентов'
+            alert_conv_cart = f'{text_conv_cart} {prod} меньше на {round(abs(conversion_prod - conversion_total) / conversion_total * 100)}% чем у конкурентов'
             alerts.append({'Алерт': alert_conv_cart,
                            'Рекомендация': reco_guideline})
         prod_funnel_m_1 = df[(df['ecom_id'] == prod) & (df['month'] == 9)].groupby('ecom_event_action').agg(
@@ -57,21 +58,38 @@ def get_alerts(products, df_total, df):
             'user_id', ascending=False).reset_index()
         conv_10 = prod_funnel_m_2['user_id'][1] / prod_funnel_m_2['user_id'][0]
         if conv_9 > conv_10:
-            alert_cart_m = f'Конверсия из просмотров в добавление в корзину - у Вашего товара {prod} сократилась в октябре по сравнению с сентябрем на {round(abs(conv_9 - conv_10) / conv_10 * 100)}%'
+            alert_cart_m = f'{text_conv_cart} {prod} сократилась в октябре по сравнению с сентябрем на {round(abs(conv_9 - conv_10) / conv_10 * 100)}%'
             alerts.append({'Алерт': alert_cart_m,
                            'Рекомендация': reco_guideline})
 
         # purchase
+        price = df[df.ecom_id == prod]['ecom_price100'].median()
+        upper_bond_pr = np.quantile(np.array(list(df_1['ecom_price100'])), 0.95, axis=None, out=None,
+                                    overwrite_input=False,
+                                    interpolation='linear', keepdims=False)
+        lower_bond_pr = np.quantile(np.array(list(df_1['ecom_price100'])), 0.05, axis=None, out=None,
+                                    overwrite_input=False,
+                                    interpolation='linear', keepdims=False)
+        mean_pr = df_1[(df_1.ecom_price100 < upper_bond_pr) & (df_1.ecom_price100 > lower_bond_pr)][
+            'ecom_price100'].mean()
         convertion_purchase = prod_funnel['user_id'][2] / prod_funnel['user_id'][1]
         conversion_total = df1_gr['user_id'][2] / df1_gr['user_id'][3]
-        if convertion_purchase < conversion_total:
-            alert_purchase = f'Конверсия из добавления в корзину в покупку - у Вашего товара- {prod} ниже чем у конкурентов на {round(abs(convertion_purchase - conversion_total) / conversion_total * 100)}%'
+        if (convertion_purchase < conversion_total) and price > mean_pr:
+            alert_purchase = f'{text_conv_purch} {prod} ниже чем у конкурентов на {round(abs(convertion_purchase - conversion_total) / conversion_total * 100)}%'
             alerts.append({'Алерт': alert_purchase,
                            'Рекомендация': reco_act})
+        if (convertion_purchase < conversion_total) and price < mean_pr:
+            alert_purchase = f'{text_conv_purch} {prod} ниже чем у конкурентов на {round(abs(convertion_purchase - conversion_total) / conversion_total * 100)}%'
+            alerts.append({'Алерт': alert_purchase,
+                           'Рекомендация': reco_guideline})
         conv_9 = prod_funnel_m_1['user_id'][2] / prod_funnel_m_1['user_id'][1]
         conv_10 = prod_funnel_m_2['user_id'][2] / prod_funnel_m_2['user_id'][1]
-        if conv_9 > conv_10:
-            alert_cart_m = f'Конверсия из добавления в корзину в покупку - у Вашего товара {prod} сократилась в октябре по сравнению с сентябрем на {round(abs(conv_9 - conv_10) / conv_10 * 100)}%'
+        if conv_9 > conv_10 and price > mean_pr:
+            alert_cart_m = f'{text_conv_purch} {prod} сократилась в октябре по сравнению с сентябрем на {round(abs(conv_9 - conv_10) / conv_10 * 100)}%'
             alerts.append({'Алерт': alert_cart_m,
                            'Рекомендация': reco_act})
+        if conv_9 > conv_10 and price < mean_pr:
+            alert_cart_m = f'{text_conv_purch} {prod} сократилась в октябре по сравнению с сентябрем на {round(abs(conv_9 - conv_10) / conv_10 * 100)}%'
+            alerts.append({'Алерт': alert_cart_m,
+                           'Рекомендация': reco_guideline})
         return alerts
